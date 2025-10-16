@@ -50,6 +50,7 @@ declare namespace Cloudflare {
 		DISPATCHER: DispatchNamespace;
 		API_RATE_LIMITER: RateLimit;
 		AUTH_RATE_LIMITER: RateLimit;
+		HYPERDRIVE: Hyperdrive;
 		AI: Ai;
 		USE_CLOUDFLARE_IMAGES: boolean;
 		CF_VERSION_METADATA: WorkerVersionMetadata;

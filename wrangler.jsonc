@@ -74,6 +74,12 @@
             "rollout_step_percentage": 100
 		}
 	],
+	 "hyperdrive": [
+		 {
+			 "binding": "HYPERDRIVE",
+			 "id": "92609d22d31b4115a05e92b18e0d0710",
+		 }
+	 ],
 	"d1_databases": [
 		{
 			"binding": "DB",

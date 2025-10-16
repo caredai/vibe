@@ -222,7 +222,8 @@ export class SecretsService extends BaseService {
                         eq(schema.userSecrets.isActive, true)
                     )
                 )
-                .get();
+                .limit(1)
+                .then(secrets => secrets[0]);
 
             if (!secret) {
                 throw new Error('Secret not found');

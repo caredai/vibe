@@ -412,7 +412,8 @@ export class AppService extends BaseService {
             })
             .from(schema.apps)
             .where(eq(schema.apps.id, appId))
-            .get();
+            .limit(1)
+            .then(apps => apps[0]);
 
         if (!app) {
             return { exists: false, isOwner: false };
@@ -440,7 +441,8 @@ export class AppService extends BaseService {
             .select()
             .from(schema.apps)
             .where(eq(schema.apps.id, appId))
-            .get();
+            .limit(1)
+            .then(apps => apps[0]);
 
         if (!app) {
             return null;
@@ -454,7 +456,8 @@ export class AppService extends BaseService {
                 eq(schema.favorites.userId, userId),
                 eq(schema.favorites.appId, appId)
             ))
-            .get();
+            .limit(1)
+            .then(favorites => favorites[0]);
 
         return {
             ...app,
@@ -532,7 +535,8 @@ export class AppService extends BaseService {
             .from(schema.apps)
             .leftJoin(schema.users, eq(schema.apps.userId, schema.users.id))
             .where(eq(schema.apps.id, appId))
-            .get();
+            .limit(1)
+            .then(results => results[0]);
 
         if (!appResult) {
             return null;
@@ -550,16 +554,16 @@ export class AppService extends BaseService {
                 .select({ count: sql<number>`count(*)` })
                 .from(schema.appViews)
                 .where(eq(schema.appViews.appId, appId))
-                .get()
-                .then(r => r?.count || 0),
+                .limit(1)
+                .then(r => r[0]?.count || 0),
             
             // Star count
             readDb
                 .select({ count: sql<number>`count(*)` })
                 .from(schema.stars)
                 .where(eq(schema.stars.appId, appId))
-                .get()
-                .then(r => r?.count || 0),
+                .limit(1)
+                .then(r => r[0]?.count || 0),
             
             // Is favorited by current user
             userId ? userReadDb
@@ -569,8 +573,8 @@ export class AppService extends BaseService {
                     eq(schema.favorites.userId, userId),
                     eq(schema.favorites.appId, appId)
                 ))
-                .get()
-                .then(r => !!r) : false,
+                .limit(1)
+                .then(r => !!r[0]) : false,
             
             // Is starred by current user
             userId ? userReadDb
@@ -580,8 +584,8 @@ export class AppService extends BaseService {
                     eq(schema.stars.userId, userId),
                     eq(schema.stars.appId, appId)
                 ))
-                .get()
-                .then(r => !!r) : false
+                .limit(1)
+                .then(r => !!r[0]) : false
         ]);
         
         return {
@@ -608,14 +612,14 @@ export class AppService extends BaseService {
                 eq(schema.stars.userId, userId),
                 eq(schema.stars.appId, appId)
             ))
-            .get();
+            .limit(1)
+            .then(stars => stars[0]);
 
         if (existingStar) {
             // Unstar
             await this.database
                 .delete(schema.stars)
-                .where(eq(schema.stars.id, existingStar.id))
-                .run();
+                .where(eq(schema.stars.id, existingStar.id));
         } else {
             // Star
             await this.database
@@ -625,20 +629,19 @@ export class AppService extends BaseService {
                     userId,
                     appId,
                     starredAt: new Date()
-                })
-                .run();
+                });
         }
 
         // Get updated star count
-        const starCountResult = await this.database
+        const starCountResults = await this.database
             .select({ count: sql<number>`count(*)` })
             .from(schema.stars)
             .where(eq(schema.stars.appId, appId))
-            .get();
+            .limit(1);
 
         return {
             isStarred: !existingStar,
-            starCount: starCountResult?.count || 0
+            starCount: starCountResults[0]?.count || 0
         };
     }
 
@@ -654,8 +657,7 @@ export class AppService extends BaseService {
                     appId,
                     userId,
                     viewedAt: new Date()
-                })
-                .run();
+                });
         } catch {
             // Ignore duplicate view errors
         }
@@ -833,7 +835,7 @@ export class AppService extends BaseService {
                         ${recentViewsSubquery} * ${this.RANKING_WEIGHTS.VIEWS} +
                         ${recentStarsSubquery} * ${this.RANKING_WEIGHTS.STARS} * 2
                     ) * 10000000 + 
-                    CAST((1000000 / (1.0 + (strftime('%s', 'now') - ${schema.apps.updatedAt}) / 86400.0)) AS INTEGER)
+                    CAST((1000000 / (1.0 + (EXTRACT(EPOCH FROM NOW()) - EXTRACT(EPOCH FROM ${schema.apps.updatedAt})) / 86400.0)) AS INTEGER)
                 ) DESC`;
                 
                 return db
@@ -944,14 +946,16 @@ export class AppService extends BaseService {
         switch (period) {
             case 'today':
                 return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            case 'week':
+            case 'week': {
                 const weekAgo = new Date(now);
                 weekAgo.setDate(now.getDate() - 7);
                 return weekAgo;
-            case 'month':
+            }
+            case 'month': {
                 const monthAgo = new Date(now);
                 monthAgo.setMonth(now.getMonth() - 1);
                 return monthAgo;
+            }
             case 'all':
             default:
                 return new Date(0); // Beginning of time

@@ -98,6 +98,7 @@
 		"openai": "^5.23.1",
 		"partysocket": "^1.1.5",
 		"perfect-arrows": "^0.3.7",
+		"postgres": "^3.4.7",
 		"react": "^19.1.1",
 		"react-day-picker": "^9.11.0",
 		"react-dom": "^19.1.1",

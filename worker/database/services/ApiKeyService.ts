@@ -37,7 +37,7 @@ export class ApiKeyService extends BaseService {
      */
     async getUserApiKeys(userId: string): Promise<ApiKeyInfo[]> {
         try {
-            const keys = await this.database
+            return await this.database
                 .select({
                     id: schema.apiKeys.id,
                     name: schema.apiKeys.name,
@@ -48,10 +48,7 @@ export class ApiKeyService extends BaseService {
                 })
                 .from(schema.apiKeys)
                 .where(eq(schema.apiKeys.userId, userId))
-                .orderBy(desc(schema.apiKeys.createdAt))
-                .all();
-            
-            return keys;
+                .orderBy(desc(schema.apiKeys.createdAt));
         } catch (error) {
             logger.error('Error fetching user API keys', error);
             return [];
@@ -118,7 +115,7 @@ export class ApiKeyService extends BaseService {
      */
     async findApiKeyByHash(keyHash: string): Promise<schema.ApiKey | null> {
         try {
-            const key = await this.database
+            return await this.database
                 .select()
                 .from(schema.apiKeys)
                 .where(
@@ -127,9 +124,8 @@ export class ApiKeyService extends BaseService {
                         eq(schema.apiKeys.isActive, true)
                     )
                 )
-                .get();
-            
-            return key || null;
+                .limit(1)
+                .then(keys => keys[0] || null);
         } catch (error) {
             logger.error('Error finding API key by hash', error);
             return null;
@@ -168,7 +164,8 @@ export class ApiKeyService extends BaseService {
                         eq(schema.apiKeys.isActive, true)
                     )
                 )
-                .get();
+                .limit(1)
+                .then(keys => keys[0]);
             
             return !existing;
         } catch (error) {
@@ -182,7 +179,7 @@ export class ApiKeyService extends BaseService {
      */
     async getActiveApiKeyCount(userId: string): Promise<number> {
         try {
-            const result = await this.database
+            return await this.database
                 .select({ count: sql<number>`COUNT(*)` })
                 .from(schema.apiKeys)
                 .where(
@@ -191,9 +188,8 @@ export class ApiKeyService extends BaseService {
                         eq(schema.apiKeys.isActive, true)
                     )
                 )
-                .get();
-            
-            return Number(result?.count) || 0;
+                .limit(1)
+                .then(results => Number(results[0]?.count) || 0);
         } catch (error) {
             logger.error('Error counting active API keys', error);
             return 0;

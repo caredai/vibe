@@ -201,9 +201,10 @@ export class ModelConfigService extends BaseService {
             .where(and(
                 eq(userModelConfigs.userId, userId),
                 eq(userModelConfigs.agentActionName, agentActionName)
-            ));
+            ))
+            .returning({ id: userModelConfigs.id });
 
-        return (result.meta?.changes || 0) > 0;
+        return result.length > 0;
     }
 
     /**
@@ -219,8 +220,9 @@ export class ModelConfigService extends BaseService {
     async resetAllUserConfigs(userId: string): Promise<number> {
         const result = await this.database
             .delete(userModelConfigs)
-            .where(eq(userModelConfigs.userId, userId));
+            .where(eq(userModelConfigs.userId, userId))
+            .returning({ id: userModelConfigs.id });
 
-        return result.meta?.changes || 0;
+        return result.length;
     }
 }

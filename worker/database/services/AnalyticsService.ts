@@ -22,7 +22,7 @@ export class AnalyticsService extends BaseService {
 
         // Use read replica for batch analytics
         const readDb = this.getReadDb('fast');
-        
+
         // Get all stats in parallel using batch queries
         const [views, forks, likes] = await Promise.all([
             // Batch view counts
@@ -33,9 +33,8 @@ export class AnalyticsService extends BaseService {
                 })
                 .from(schema.appViews)
                 .where(inArray(schema.appViews.appId, appIds))
-                .groupBy(schema.appViews.appId)
-                .all(),
-            
+                .groupBy(schema.appViews.appId),
+
             // Batch fork counts
             readDb
                 .select({
@@ -44,9 +43,8 @@ export class AnalyticsService extends BaseService {
                 })
                 .from(schema.apps)
                 .where(inArray(schema.apps.parentAppId, appIds))
-                .groupBy(schema.apps.parentAppId)
-                .all(),
-            
+                .groupBy(schema.apps.parentAppId),
+
             // Batch like counts
             readDb
                 .select({
@@ -56,12 +54,11 @@ export class AnalyticsService extends BaseService {
                 .from(schema.appLikes)
                 .where(inArray(schema.appLikes.appId, appIds))
                 .groupBy(schema.appLikes.appId)
-                .all()
         ]);
 
         // Combine results into lookup object
         const result: BatchAppStats = {};
-        
+
         appIds.forEach(appId => {
             result[appId] = {
                 viewCount: views.find(v => v.appId === appId)?.count ?? 0,
@@ -79,16 +76,16 @@ export class AnalyticsService extends BaseService {
     async getUserStats(userId: string): Promise<UserStats> {
         // Use 'fresh' strategy for user dashboard data
         const readDb = this.getReadDb('fresh');
-        
+
         const [appCount, publicAppCount, favoriteCount, totalLikesReceived, totalViewsReceived, streakDays] = await Promise.all([
             // Count user's total apps
             readDb
                 .select({ count: count() })
                 .from(schema.apps)
                 .where(eq(schema.apps.userId, userId))
-                .get()
-                .then(r => r?.count ?? 0),
-            
+                .limit(1)
+                .then(r => r[0]?.count ?? 0),
+
             // Count user's public apps
             readDb
                 .select({ count: count() })
@@ -99,35 +96,35 @@ export class AnalyticsService extends BaseService {
                         eq(schema.apps.visibility, 'public')
                     )
                 )
-                .get()
-                .then(r => r?.count ?? 0),
-            
+                .limit(1)
+                .then(r => r[0]?.count ?? 0),
+
             // Count favorites
             readDb
                 .select({ count: count() })
                 .from(schema.favorites)
                 .where(eq(schema.favorites.userId, userId))
-                .get()
-                .then(r => r?.count ?? 0),
-            
+                .limit(1)
+                .then(r => r[0]?.count ?? 0),
+
             // Count total likes received on user's apps (using favorites instead of appLikes)
             readDb
                 .select({ count: count() })
                 .from(schema.favorites)
                 .innerJoin(schema.apps, eq(schema.favorites.appId, schema.apps.id))
                 .where(eq(schema.apps.userId, userId))
-                .get()
-                .then(r => r?.count ?? 0),
-            
+                .limit(1)
+                .then(r => r[0]?.count ?? 0),
+
             // Count total views received on user's apps
             readDb
                 .select({ count: count() })
                 .from(schema.appViews)
                 .innerJoin(schema.apps, eq(schema.appViews.appId, schema.apps.id))
                 .where(eq(schema.apps.userId, userId))
-                .get()
-                .then(r => r?.count ?? 0),
-                
+                .limit(1)
+                .then(r => r[0]?.count ?? 0),
+
             // Calculate user activity streak
             this.calculateUserStreak(userId)
         ]);
@@ -158,8 +155,7 @@ export class AnalyticsService extends BaseService {
                 .from(schema.apps)
                 .where(eq(schema.apps.userId, userId))
                 .orderBy(sql`DATE(${schema.apps.updatedAt}) DESC`)
-                .groupBy(sql`DATE(${schema.apps.updatedAt})`)
-                .all();
+                .groupBy(sql`DATE(${schema.apps.updatedAt})`);
 
             if (activities.length === 0) return 0;
 
@@ -170,7 +166,7 @@ export class AnalyticsService extends BaseService {
             // Check if there's activity today or yesterday
             const lastActivity = new Date(activities[0].date);
             const daysDiff = Math.floor((today.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24));
-            
+
             if (daysDiff > 1) return 0; // Streak broken
 
             // Count consecutive days
@@ -178,7 +174,7 @@ export class AnalyticsService extends BaseService {
             for (const activity of activities) {
                 const activityDate = new Date(activity.date);
                 const diff = Math.floor((currentDate.getTime() - activityDate.getTime()) / (1000 * 60 * 60 * 24));
-                
+
                 if (diff <= 1) {
                     streak++;
                     currentDate = activityDate;
@@ -200,7 +196,7 @@ export class AnalyticsService extends BaseService {
     async getUserActivityTimeline(userId: string, limit: number = 20): Promise<UserActivity[]> {
         // Use 'fresh' strategy for user's activity feed
         const readDb = this.getReadDb('fresh');
-        
+
         // Get recent app activities
         const appActivities = await readDb
             .select({

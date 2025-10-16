@@ -3,10 +3,10 @@
  * Provides database connection, core utilities, and base operations∂ƒ
  */
 
-import { drizzle } from 'drizzle-orm/d1';
-import * as Sentry from '@sentry/cloudflare';
+import postgresJs from 'postgres'
+import { drizzle as drizzlePostgresJs } from 'drizzle-orm/postgres-js'
 import * as schema from './schema';
-import type { DrizzleD1Database } from 'drizzle-orm/d1';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 
 import type { HealthStatusResult } from './types';
 
@@ -27,41 +27,37 @@ export type {
 
 /**
  * Core Database Service - Connection and Base Operations
- * 
+ *
  * Provides database connection, shared utilities, and core operations.
  * Domain-specific operations are handled by dedicated service classes.
  */
 export class DatabaseService {
-    public readonly db: DrizzleD1Database<typeof schema>;
-    private readonly d1: D1Database;
-    private readonly enableReplicas: boolean;
+    public readonly db: PostgresJsDatabase<typeof schema>;
 
     constructor(env: Env) {
-        const instrumented = Sentry.instrumentD1WithSentry(env.DB);
-        this.d1 = instrumented;
-        this.db = drizzle(instrumented, { schema });
-        this.enableReplicas = env.ENABLE_READ_REPLICAS === 'true';
+		const client = postgresJs(env.HYPERDRIVE.connectionString, {
+			// Limit the connections for the Worker request to 5 due to Workers' limits on concurrent external connections
+			max: 5,
+			// If you are not using array types in your Postgres schema, disable `fetch_types` to avoid an additional round-trip (unnecessary latency)
+			fetch_types: false,
+		})
+		this.db = drizzlePostgresJs({
+			client,
+			schema,
+		})
     }
 
     /**
      * Get a read-optimized database connection using D1 Sessions API
      * This routes queries to read replicas for lower global latency
-     * 
+     *
      * @param strategy - Session strategy:
      *   - 'fast' (default): Routes to any replica for lowest latency
      *   - 'fresh': Routes first query to primary for latest data
      * @returns Drizzle database instance configured for read operations
      */
-    public getReadDb(strategy: 'fast' | 'fresh' = 'fast'): DrizzleD1Database<typeof schema> {
-        // Return regular db if replicas are disabled
-        if (!this.enableReplicas) {
-            return this.db;
-        }
-
-        const sessionType = strategy === 'fresh' ? 'first-primary' : 'first-unconstrained';
-        const session = this.d1.withSession(sessionType);
-        // D1DatabaseSession is compatible with D1Database for Drizzle operations
-        return drizzle(session as unknown as D1Database, { schema });
+    public getReadDb(_strategy: 'fast' | 'fresh' = 'fast'): PostgresJsDatabase<typeof schema> {
+		return this.db
     }
 
     // ========================================

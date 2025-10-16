@@ -135,7 +135,8 @@ export class UserService extends BaseService {
                     excludeUserId ? ne(schema.users.id, excludeUserId) : undefined
                 )
             )
-            .get();
+            .limit(1)
+            .then(users => users[0]);
         
         return !existingUser;
     }
@@ -185,7 +186,8 @@ export class UserService extends BaseService {
                 .select({ id: schema.users.id })
                 .from(schema.users)
                 .where(eq(schema.users.username, username))
-                .get();
+                .limit(1)
+                .then(users => users[0]);
 
             if (existingUser && existingUser.id !== userId) {
                 return { 
@@ -224,8 +226,8 @@ export class UserService extends BaseService {
                 .select({ count: sql<number>`COUNT(*)` })
                 .from(schema.apps)
                 .where(eq(schema.apps.userId, userId))
-                .get()
-                .then(r => Number(r?.count) || 0),
+                .limit(1)
+                .then(r => Number(r[0]?.count) || 0),
 
             // Apps created this month
             this.database
@@ -235,8 +237,8 @@ export class UserService extends BaseService {
                     eq(schema.apps.userId, userId),
                     sql`${schema.apps.createdAt} >= ${startOfMonth}`
                 ))
-                .get()
-                .then(r => Number(r?.count) || 0)
+                .limit(1)
+                .then(r => Number(r[0]?.count) || 0)
         ]);
 
         return { totalApps, appsThisMonth };

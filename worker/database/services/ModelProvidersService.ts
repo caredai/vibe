@@ -34,7 +34,8 @@ export class ModelProvidersService extends BaseService {
                     eq(schema.userModelProviders.name, name)
                 )
             )
-            .get();
+            .limit(1)
+            .then(providers => providers[0]);
         
         return !!existing;
     }
@@ -70,15 +71,14 @@ export class ModelProvidersService extends BaseService {
         return await this.database
             .select()
             .from(schema.userModelProviders)
-            .where(eq(schema.userModelProviders.userId, userId))
-            .all();
+            .where(eq(schema.userModelProviders.userId, userId));
     }
 
     /**
      * Get a specific provider by ID
      */
     async getProvider(userId: string, providerId: string): Promise<schema.UserModelProvider | null> {
-        const provider = await this.database
+        return await this.database
             .select()
             .from(schema.userModelProviders)
             .where(
@@ -87,16 +87,15 @@ export class ModelProvidersService extends BaseService {
                     eq(schema.userModelProviders.userId, userId)
                 )
             )
-            .get();
-
-        return provider || null;
+            .limit(1)
+            .then(providers => providers[0] || null);
     }
 
     /**
      * Get a provider by name
      */
     async getProviderByName(userId: string, name: string): Promise<schema.UserModelProvider | null> {
-        const provider = await this.database
+        return await this.database
             .select()
             .from(schema.userModelProviders)
             .where(
@@ -105,9 +104,8 @@ export class ModelProvidersService extends BaseService {
                     eq(schema.userModelProviders.name, name)
                 )
             )
-            .get();
-
-        return provider || null;
+            .limit(1)
+            .then(providers => providers[0] || null);
     }
 
     /**
@@ -172,12 +170,11 @@ export class ModelProvidersService extends BaseService {
      * Get provider count for user
      */
     async getProviderCount(userId: string): Promise<number> {
-        const result = await this.database
+        return await this.database
             .select({ count: sql<number>`count(*)` })
             .from(schema.userModelProviders)
             .where(eq(schema.userModelProviders.userId, userId))
-            .get();
-
-        return result?.count || 0;
+            .limit(1)
+            .then(results => results[0]?.count || 0);
     }
 }

@@ -1,22 +1,22 @@
 import { getConfigurationForModel } from '../../agents/inferutils/core';
 import { eq } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/d1';
 import { apps } from '../../database/schema';
 import { jwtVerify, SignJWT } from 'jose';
 import { isDev } from 'worker/utils/envs';
 import { RateLimitService } from '../rate-limit/rateLimits';
 import { getUserConfigurableSettings } from 'worker/config';
+import { createDatabaseService } from 'worker/database';
 
 export async function proxyToAiGateway(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     console.log(`[AI Proxy] Received request: ${request.method} ${request.url}`);
     if (!env.AI_PROXY_JWT_SECRET) {
         console.error('AI Gateway proxy is not enabled for this platform');
         // Platform doesnt have ai gateway proxy enabled, return 403
-        return new Response(JSON.stringify({ 
-            error: { message: 'AI Gateway proxy is not enabled for this platform', type: 'invalid_request_error' } 
-        }), { 
-            status: 403, 
-            headers: { 'Content-Type': 'application/json' } 
+        return new Response(JSON.stringify({
+            error: { message: 'AI Gateway proxy is not enabled for this platform', type: 'invalid_request_error' }
+        }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' }
         });
     }
     // Handle CORS preflight requests
@@ -35,21 +35,21 @@ export async function proxyToAiGateway(request: Request, env: Env, _ctx: Executi
     try {
         const authHeader = request.headers.get('Authorization');
         if (!authHeader) {
-            return new Response(JSON.stringify({ 
-                error: { message: 'Missing Authorization header', type: 'invalid_request_error' } 
-            }), { 
-                status: 401, 
-                headers: { 'Content-Type': 'application/json' } 
+            return new Response(JSON.stringify({
+                error: { message: 'Missing Authorization header', type: 'invalid_request_error' }
+            }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' }
             });
         }
 
         const token = authHeader.replace(/^Bearer\s+/i, '').trim();
         if (!token) {
-            return new Response(JSON.stringify({ 
-                error: { message: 'Invalid Authorization header format', type: 'invalid_request_error' } 
-            }), { 
-                status: 401, 
-                headers: { 'Content-Type': 'application/json' } 
+            return new Response(JSON.stringify({
+                error: { message: 'Invalid Authorization header format', type: 'invalid_request_error' }
+            }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' }
             });
         }
 
@@ -58,39 +58,39 @@ export async function proxyToAiGateway(request: Request, env: Env, _ctx: Executi
         try {
             const jwtSecret = new TextEncoder().encode(env.AI_PROXY_JWT_SECRET);
             const { payload } = await jwtVerify(token, jwtSecret);
-            
+
             if (!payload.appId || typeof payload.appId !== 'string') {
-                return new Response(JSON.stringify({ 
-                    error: { message: 'Invalid token: missing appId', type: 'invalid_request_error' } 
-                }), { 
-                    status: 401, 
-                    headers: { 'Content-Type': 'application/json' } 
+                return new Response(JSON.stringify({
+                    error: { message: 'Invalid token: missing appId', type: 'invalid_request_error' }
+                }), {
+                    status: 401,
+                    headers: { 'Content-Type': 'application/json' }
                 });
             }
-            
+
             if (!payload.userId || typeof payload.userId !== 'string') {
-                return new Response(JSON.stringify({ 
-                    error: { message: 'Invalid token: missing userId', type: 'invalid_request_error' } 
-                }), { 
-                    status: 401, 
-                    headers: { 'Content-Type': 'application/json' } 
+                return new Response(JSON.stringify({
+                    error: { message: 'Invalid token: missing userId', type: 'invalid_request_error' }
+                }), {
+                    status: 401,
+                    headers: { 'Content-Type': 'application/json' }
                 });
             }
-            
+
             appId = payload.appId as string;
             userId = payload.userId as string;
-            
+
         } catch (error) {
             console.error('[AI Proxy] Token verification failed:', error);
-            return new Response(JSON.stringify({ 
-                error: { message: 'Invalid or expired token', type: 'invalid_request_error' } 
-            }), { 
-                status: 401, 
-                headers: { 'Content-Type': 'application/json' } 
+            return new Response(JSON.stringify({
+                error: { message: 'Invalid or expired token', type: 'invalid_request_error' }
+            }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' }
             });
         }
 
-        const db = drizzle(env.DB);
+        const db = createDatabaseService(env).db;
         const app = await db.select({
             id: apps.id,
             userId: apps.userId,
@@ -99,24 +99,25 @@ export async function proxyToAiGateway(request: Request, env: Env, _ctx: Executi
         })
         .from(apps)
         .where(eq(apps.id, appId))
-        .get();
+		.limit(1)
+		.then(apps => apps.at(0));
 
         if (!app) {
-            return new Response(JSON.stringify({ 
-                error: { message: 'App not found', type: 'invalid_request_error' } 
-            }), { 
-                status: 404, 
-                headers: { 'Content-Type': 'application/json' } 
+            return new Response(JSON.stringify({
+                error: { message: 'App not found', type: 'invalid_request_error' }
+            }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
             });
         }
-        
+
         if (app.userId !== userId) {
             console.error(`[AI Proxy] UserId mismatch: token userId=${userId}, app userId=${app.userId}`);
-            return new Response(JSON.stringify({ 
-                error: { message: 'Token does not match app owner', type: 'invalid_request_error' } 
-            }), { 
-                status: 403, 
-                headers: { 'Content-Type': 'application/json' } 
+            return new Response(JSON.stringify({
+                error: { message: 'Token does not match app owner', type: 'invalid_request_error' }
+            }), {
+                status: 403,
+                headers: { 'Content-Type': 'application/json' }
             });
         }
 
@@ -129,16 +130,16 @@ export async function proxyToAiGateway(request: Request, env: Env, _ctx: Executi
         };
 
         if (!requestBody.model || typeof requestBody.model !== 'string') {
-            return new Response(JSON.stringify({ 
-                error: { 
+            return new Response(JSON.stringify({
+                error: {
                     message: 'Missing required parameter: model',
                     type: 'invalid_request_error',
                     param: 'model',
                     code: 'missing_required_parameter'
-                } 
-            }), { 
-                status: 400, 
-                headers: { 'Content-Type': 'application/json' } 
+                }
+            }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
             });
         }
 
@@ -159,7 +160,7 @@ export async function proxyToAiGateway(request: Request, env: Env, _ctx: Executi
         const proxyHeaders = new Headers();
         proxyHeaders.set('Content-Type', 'application/json');
         proxyHeaders.set('Authorization', `Bearer ${apiKey}`);
-        
+
         if (defaultHeaders) {
             Object.entries(defaultHeaders).forEach(([key, value]) => {
                 proxyHeaders.set(key, value);
@@ -192,14 +193,14 @@ export async function proxyToAiGateway(request: Request, env: Env, _ctx: Executi
 
     } catch (error) {
         console.error('[AI Proxy] Error processing request:', error);
-        return new Response(JSON.stringify({ 
-            error: { 
+        return new Response(JSON.stringify({
+            error: {
                 message: error instanceof Error ? error.message : 'Internal server error',
-                type: 'internal_error' 
-            } 
-        }), { 
-            status: 500, 
-            headers: { 'Content-Type': 'application/json' } 
+                type: 'internal_error'
+            }
+        }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
         });
     }
 }
@@ -212,7 +213,7 @@ export async function generateAppProxyToken(
 ): Promise<string> {
     const jwtSecret = new TextEncoder().encode(env.AI_PROXY_JWT_SECRET);
     const now = Math.floor(Date.now() / 1000);
-    
+
     const token = await new SignJWT({
         appId,
         userId,
@@ -223,7 +224,7 @@ export async function generateAppProxyToken(
     .setIssuedAt(now)
     .setExpirationTime(now + expiresInSeconds)
     .sign(jwtSecret);
-    
+
     return token;
 }
 
